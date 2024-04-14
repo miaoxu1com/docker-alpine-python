@@ -1,35 +1,49 @@
 FROM alpine:latest AS builder-image
 # avoid stuck build due to user prompt
-# 不再建议使用 ENV DEBUG 0 环境变量，没必要。
-# --no-cache: 这个选项告诉apk在安装软件包时不将软件包的元数据缓存到系统中。这意味着不会将下载的软件包索引存储在本地，
-# 有助于减小镜像的大小，特别适合于Docker容器这类空间有限的环境。
-ARG DEBIAN_FRONTEND=noninteractive
 # ENV PYTHONDONTWRITEBYTECODE 1: 建议构建 Docker 镜像时一直为 1, 防止 python 将 pyc 文件写入硬盘
-ENV PYTHONDONTWRITEBYTECODE=1
 # ENV PYTHONUNBUFFERED 1: 建议构建 Docker 镜像时一直为 1, 防止 python 缓冲 (buffering) stdout 和 stderr, 以便更容易地进行容器日志记录
+# 不再建议使用 ENV DEBUG 0 环境变量，没必要。
+#**/__pycache__: python 缓存目录
+#**/*venv: Python 虚拟环境目录。很多 Python 开发习惯将虚拟环境目录创建在项目下，一般命名为：.venv 或 venv
+#**/.env: Python 环境变量文件
+#**/.git **/.gitignore: git 相关目录和文件
+#**/.vscode: 编辑器、IDE 相关目录
+#**/charts: Helm Chart 相关文件
+#**/docker-compose*: docker compose 相关文件
+#*.db: 如果使用 sqllite 的相关数据库文件
+#.python-version: pyenv 的 .python-version 文件
+# --no-cache: 这个选项告诉apk在安装软件包时不将软件包的元数据缓存到系统中。这意味着不会将下载的软件包索引存储在本地，有助于减小镜像的大小，特别适合于Docker容器这类空间有限的环境。
+ARG DEBIAN_FRONTEND=noninteractive
+ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories \
     && apk update  \
     && apk upgrade \
-    && apk add --no-cache python3 \
-    && apk add --no-cache python3-dev \
-    && rm -rf /root/.cache/pip \
-    && rm -rf /var/cache/apk/* # 等价apk add --no-cache
+    && apk add --no-cache --update python3 \
+    && rm -rf /root/.cache/pip
 # create and activate virtual environment
 # using final folder name to avoid path issues with packages
-RUN python3 -m venv /home/myapp/venv
-ENV PATH="/home/myapp/venv/bin:$PATH"
+RUN python3 -m venv /home/myuser/venv
+ENV PATH="/home/myuser/venv/bin:$PATH"
 COPY requirements.txt .
-RUN pip3 install --no-cache-dir -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/
+RUN pip3 install --upgrade --no-cache-dir -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/
 
 FROM alpine:latest AS runner-image
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories \
+    && apk update  \
+    && apk upgrade \
+    && apk add --no-cache --update python3 \
+    && rm -rf /root/.cache/pip
 ENV TZ Asia/Shanghai
-COPY --from=builder-image /home/myapp/venv /home/myapp/venv
+COPY --from=builder-image /home/myuser/venv /home/myuser/venv
 #EXPOSE 5000
+# make sure all messages always reach console
+
 # activate virtual environment
-ENV VIRTUAL_ENV=/home/myapp/venv/bin
+ENV VIRTUAL_ENV=/home/myuser/venv/bin
 ENV PATH="$VIRTUAL_ENV:$PATH"
-WORKDIR /home/myapp
-COPY ./main.py .
+WORKDIR /home/app
+#COPY . /home/app/
+
 # ENTRYPOINT ["/home/app"]
-CMD ["python","main.py"]
+CMD ["python3"，"main.py"]
