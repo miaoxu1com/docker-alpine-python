@@ -1,0 +1,2 @@
+docker部署gitea宿主机222端口，使用gitea默认生成的ssh仓库地址无法操作代码藏
+git add remote ssh://git@192.168.31.137:222/miaoxu1com/alpine-python.git

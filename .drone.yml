@@ -1,0 +1,45 @@
+kind: pipeline # 定义对象类型，还有secret和signature两种类型
+type: docker # 定义流水线类型，还有kubernetes、exec、ssh等类型
+name: test_drone # 定义流水线名称
+
+steps:
+# 定义流水线执行步骤，这些步骤将顺序执行
+#  python语言不需要构建包文件
+#  - name: build-python # 流水线名称
+#    image: maven:3.8.5-openjdk-8 # 定义创建容器的Docker镜像
+#    volumes: # 将容器内目录挂载到宿主机，仓库需要开启Trusted设置
+#      - name: python-cache
+#        path: /home/Gettler/.m2 # 将maven下载依赖的目录挂载出来，防止重复下载
+#      - name: python-build
+#        path: /app/build/generator # 将应用打包好的Jar和执行脚本挂载出来
+#    commands:
+#      - $MAVEN_HOME/bin/mvn -v
+#      - $MAVEN_HOME/bin/mvn clean package -DskipTests=true
+#      # 将打包后的jar包，拷贝到 /root/testDrone 目录
+#      - cp target/*.jar  /app/build/generator
+#      - cp Dockerfile /app/build/generator
+#      - cp run.sh /app/build/generator
+  - name: build-docker # 流水线名称
+    image: plugins/docker # 使用plugins/docker镜像来执行Docker相关操作。这是Drone提供的官方插件，允许在流水线中构建、推送Docker镜像等。
+    volumes: # 将容器内目录挂载到宿主机，仓库需要开启Trusted设置
+#      - name: python-build
+#        path: /app/build/generator # 将应用打包好的Jar和执行脚本挂载出来
+      - name: docker
+        path: /var/run/docker.sock # 挂载宿主机的docker
+    settings:
+      dockerfile: Dockerfile
+    commands:
+        - chmod +x run.sh
+        - sh run.sh
+        - docker ps
+
+volumes: # 定义流水线挂载目录，用于共享数据
+#  - name: python-build
+#    host:
+#      path: /app/build/generator   #jar包目录可以修改从宿主机中挂载的目录
+#  - name: python-cache
+#    host:
+#      path: /home/Gettler/docker/maven/cache
+  - name: docker
+    host:
+      path: /var/run/docker.sock
