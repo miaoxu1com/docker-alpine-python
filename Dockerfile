@@ -1,7 +1,10 @@
 ARG APP_VERSION=latest
+ARG SOURCE_DIR
 FROM alpine:${APP_VERSION} AS builder-image
 # 测试构建使用的命令
-# docker buildx build --no-cache -t python-3-test -f Dockerfile .
+# 另外sh脚本cd后执行目录就变成了cd之后的目录
+# 如果在Dockerfile中使用的COPY目录是宿主机目录没有在Docker目录及子目录就要在Dockerfile中定义一个参数来构件时调用
+# docker buildx build --build-arg SOURCE_DIR=/tmp/curlconverter.github.io-gh-pages --no-cache -t python-3-test -f Dockerfile .
 # 新版本的Docker不支持--squash参数需要使用多阶段构建 会发出警告WARNING: experimental flag squash is removed with BuildKit.
 # You should squash inside build using a multi-stage Dockerfile for efficiency.
 
