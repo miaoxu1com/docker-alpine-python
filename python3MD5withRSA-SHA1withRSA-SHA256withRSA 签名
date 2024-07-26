@@ -1,0 +1,471 @@
+MD5withRSA/SHA1withRSA/SHA256withRSA 签名
+https://www.cnblogs.com/gqv2009/p/14377013.html
+
+java MD5WithRSA 算法
+首先我们来看 Java 中的 MD5withRSA 签名
+JAVA private static final String SIGNATURE_ALGORITHM = "MD5withRSA";
+
+复制import java.security.KeyFactory;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.Signature;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
+import kh.pms.tools.StringUtil;
+
+/**
+ * 签名验签及加密 1.对原文进行des加密。 2.des加密数据进行md5。 3.用我方私钥进行md5的签名。 4.用我方公钥对des加密数据进行加密
+ * 
+ * @author chx
+ *
+ */
+public class MD5withRSA {
+    private static final String FLAG_RSA = "RSA";
+    private static final String SIGNATURE_ALGORITHM = "MD5withRSA";
+    /**
+     * 我方私钥对象
+     */
+    private PrivateKey myPrivateKeyObj;
+
+    /**
+     * 银行方公钥对象
+     */
+    private PublicKey bankPublicKeyObj;
+
+    /**
+     * 获取签名
+     * 
+     * @return
+     * @throws Exception
+     */
+    public byte[] getSign(String str) throws Exception {
+        Signature signature = Signature.getInstance(SIGNATURE_ALGORITHM);// 签名的算法
+        signature.initSign(myPrivateKeyObj);
+        signature.update(str.getBytes());
+        return signature.sign();
+    }
+
+    /**
+     * 析构函数
+     * 
+     * @param plain
+     *            待加解密原文
+     * @throws Exception
+     */
+    public MD5withRSA() throws Exception {
+        myPrivateKeyObj = getPrivateKey();　　　　　　//将此处的JianHangUtil.bankPublicKey更换为自己的公钥字符串(base64格式)，后面的
+        bankPublicKeyObj = getPublicKey(JianHangUtil.bankPublicKey);
+    }
+
+    /**
+     * 通过预制公钥生成PublicKey
+     * 
+     * @param pubKey
+     * @return
+     * @throws Exception
+     */
+    private PublicKey getPublicKey(String key) throws Exception {
+        byte[] encoded = StringUtil.getBaseStrJie(key);
+        X509EncodedKeySpec keySpec = new X509EncodedKeySpec(encoded);
+        KeyFactory factory = KeyFactory.getInstance(FLAG_RSA);
+        return factory.generatePublic(keySpec);
+    }
+
+    /**
+     * 将指定的字符串转换为私钥key
+     * 
+     * @param priKey
+     * @return
+     * @throws Exception
+     */
+    private PrivateKey getPrivateKey() throws Exception {
+        // 首先进行base64解码。
+        byte[] encoded = StringUtil.getBaseStrJie(JianHangUtil.myPrivateKey);
+        PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(encoded);
+        KeyFactory factory = KeyFactory.getInstance(FLAG_RSA);
+        return factory.generatePrivate(keySpec);
+    }
+
+    /**
+     * 验证签名
+     * 
+     * @param data
+     *            原文
+     * @param mySign
+     *            签名
+     * @return
+     * @throws Exception
+     */
+    public boolean yanZhengSign(byte[] data, byte[] mySign) throws Exception {
+        Signature signature = Signature.getInstance(SIGNATURE_ALGORITHM);
+        signature.initVerify(bankPublicKeyObj);
+        signature.update(data);
+        return signature.verify(mySign);
+    }
+加解密
+复制package kh.pms.bank;
+import javax.crypto.Cipher;
+import javax.crypto.SecretKey;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.DESedeKeySpec;
+import kh.pms.tools.StringUtil;
+
+/**
+ * 报文加解密工具(注意，本类所有方法均会进行base64解码)
+ * 
+ * @author chx
+ *
+ */
+public class DESedeCoder {
+    /**
+     * 密钥算法
+     */
+    private static String KEY_ALGORITHM = "DESede";
+    private static String DEFAULT_CIPHER_ALGORITHM = "DESede/ECB/PKCS5Padding";
+
+    /**
+     * 加密(会对des和公钥进行base64解码)
+     * 
+     * @param data
+     *            待加密数据
+     * @param key
+     *            密钥
+     * @return byte[] 加密数据
+     * @throws Exception
+     */
+    public byte[] encrypt(byte[] src) throws Exception {
+        DESedeKeySpec dks = new DESedeKeySpec(StringUtil.getBaseStrJie(JianHangUtil.desKey));
+        SecretKeyFactory keyFactory = SecretKeyFactory.getInstance(KEY_ALGORITHM);
+        SecretKey securekey = keyFactory.generateSecret(dks);
+        Cipher cipher = Cipher.getInstance(DEFAULT_CIPHER_ALGORITHM);
+        cipher.init(Cipher.ENCRYPT_MODE, securekey);
+        return cipher.doFinal(src);
+    }
+
+    /**
+     * 解密
+     * 
+     * @param data
+     *            待解密数据
+     * @param key
+     *            密钥
+     * @return byte[] 解密数据
+     * @throws Exception
+     */
+    public byte[] decrypt(byte[] data) throws Exception {
+        // 加解密的deskey(需更换为自己的des密钥)
+        DESedeKeySpec dks = new DESedeKeySpec(StringUtil.getBaseStrJie(JianHangUtil.desKey));
+        SecretKeyFactory keyFactory = SecretKeyFactory.getInstance(KEY_ALGORITHM);
+        SecretKey securekey = keyFactory.generateSecret(dks);
+        Cipher cipher = Cipher.getInstance(DEFAULT_CIPHER_ALGORITHM);
+        cipher.init(Cipher.DECRYPT_MODE, securekey);
+        return cipher.doFinal(data);
+    }
+}
+一、python 实现 MD5withRSA 签名
+复制from Crypto.PublicKey import RSA
+from Crypto.Signature import PKCS1_v1_5
+from Crypto.Hash import MD5, SHA1, SHA256
+import base64
+from flask import current_app
+import warnings
+warnings.filterwarnings("ignore")
+
+
+
+def RSA_sign(data):
+    privateKey = '''MIICdwIBADANBgkqhkiG9w0BAQEFAASCAmEwggJdAgEAAoGBAIooE+9hmb6GvAUQ3j9FDRgrhWMmVWKepKNmQerrvovmySUSPzFHainDMl6HuQAWHCMI9O8S9kzqG3o9pnetpG7JShB6Oc9eX0kA6n0vLR2rYXNo5uVC29/Koqp250T7lzQ9bv6P0rkjIrqjTNIPVQXToyAwQcZQ5rVhUbtnP7YlAgMBAAECgYBpSzpGS0B9sPpDciOwXNQqA6FZe7G/w+D+l8TNYnaK8Y2Dr3ByAlerFJWi7hXVNwSivwTN4MnOvO3MMIha1gBnQCFStI4PjRv2qz6vsGfzZKFadUw3ngzGhT5UtIVAd+IFbbr4J+cGjGMmF5lIEaKrRCS5u4p11uf6LmhvbBTm0QJBAMQA7RYimdU9UStIm/RSkLQg6K89Om3S2AFXwqymiqhM4m6n7lRTE1xNX4pGm1BV8C/qL0d7AHbrJBFi+hN5onMCQQC0cjAXmKdnfhTo0IvYtzpXr77odBz4zt2Ake65ssBJEWFzle69MbWgkbrTKLLjGxBwM+C7fPDGNckqhlpjMGcHAkB+vcKRT6p9svqrrHX8FO+xKp6LwmHn5jD7HU6q6b47egvpVfnM2TNpujaPaXzBA/EeaqZL6IOyYfaer4vZ0At1AkEAqezuRQpIezlMT4I0b7z8gB7MVPMjZVrJVI4YlV8znJt1ffevfxMUy0Tw/nDRJPUTodX4yBZ8VuvHqPgknkuyeQJBALYpXGOH/GjlSVtnhq7eZxvoEqiBLawW5k7Rl1IyNdGR2qxY/nnoCyP2mMCs1Ba05sCcX08zzOzMPvttbSyjqPI='''
+
+    private_keyBytes = base64.b64decode(privateKey)
+    priKey = RSA.importKey(private_keyBytes)
+    # priKey = RSA.importKey(privateKey)
+    signer = PKCS1_v1_5.new(priKey,)
+    # SIGNATURE_ALGORITHM = "MD5withRSA"
+    hash_obj = MD5.new(data.encode('utf-8'))
+    # SIGNATURE_ALGORITHM = "SHA1withRSA"
+    # hash_obj = SHA1.new(data.encode('utf-8'))
+    # SIGNATURE_ALGORITHM = "SHA256withRSA"
+    # hash_obj = SHA256.new(data.encode('utf-8'))
+
+    signature = base64.b64encode(signer.sign(hash_obj))
+    return signature
+
+
+if __name__ == '__main__':
+    data = "phone=15811352072×tamp=1612496512540&device=Android"
+    res_sign1 = RSA_sign(data)
+    signature = res_sign1.decode('utf8')
+    print(signature)
+java SHA1WithRSA 算法
+其次, 我们来看下 Java 中的 SHA1withRSA 签名
+
+复制import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.security.KeyFactory;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
+ 
+import javax.crypto.Cipher;
+ 
+public class RSA{
+     
+    public static final String  SIGN_ALGORITHMS = "SHA1WithRSA";
+     
+    /**
+    * RSA签名
+    * @param content 待签名数据
+    * @param privateKey 商户私钥
+    * @param input_charset 编码格式
+    * @return 签名值
+    */
+    public static String sign(String content, String privateKey, String input_charset)
+    {
+        try
+        {
+            PKCS8EncodedKeySpec priPKCS8    = new PKCS8EncodedKeySpec( Base64.decode(privateKey) );
+            KeyFactory keyf                 = KeyFactory.getInstance("RSA");
+            PrivateKey priKey               = keyf.generatePrivate(priPKCS8);
+ 
+            java.security.Signature signature = java.security.Signature
+                .getInstance(SIGN_ALGORITHMS);
+ 
+            signature.initSign(priKey);
+            signature.update( content.getBytes(input_charset) );
+ 
+            byte[] signed = signature.sign();
+             
+            return Base64.encode(signed);
+        }
+        catch (Exception e)
+        {
+            e.printStackTrace();
+        }
+         
+        return null;
+    }
+     
+    /**
+    * RSA验签名检查
+    * @param content 待签名数据
+    * @param sign 签名值
+    * @param ali_public_key 支付宝公钥
+    * @param input_charset 编码格式
+    * @return 布尔值
+    */
+    public static boolean verify(String content, String sign, String ali_public_key, String input_charset)
+    {
+        try
+        {
+            KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+            byte[] encodedKey = Base64.decode(ali_public_key);
+            PublicKey pubKey = keyFactory.generatePublic(new X509EncodedKeySpec(encodedKey));
+ 
+         
+            java.security.Signature signature = java.security.Signature
+            .getInstance(SIGN_ALGORITHMS);
+         
+            signature.initVerify(pubKey);
+            signature.update( content.getBytes(input_charset) );
+         
+            boolean bverify = signature.verify( Base64.decode(sign) );
+            return bverify;
+             
+        }
+        catch (Exception e)
+        {
+            e.printStackTrace();
+        }
+         
+        return false;
+    }
+     
+    /**
+    * 解密
+    * @param content 密文
+    * @param private_key 商户私钥
+    * @param input_charset 编码格式
+    * @return 解密后的字符串
+    */
+    public static String decrypt(String content, String private_key, String input_charset) throws Exception {
+        PrivateKey prikey = getPrivateKey(private_key);
+ 
+        Cipher cipher = Cipher.getInstance("RSA");
+        cipher.init(Cipher.DECRYPT_MODE, prikey);
+ 
+        InputStream ins = new ByteArrayInputStream(Base64.decode(content));
+        ByteArrayOutputStream writer = new ByteArrayOutputStream();
+        //rsa解密的字节大小最多是128，将需要解密的内容，按128位拆开解密
+        byte[] buf = new byte[128];
+        int bufl;
+ 
+        while ((bufl = ins.read(buf)) != -1) {
+            byte[] block = null;
+ 
+            if (buf.length == bufl) {
+                block = buf;
+            } else {
+                block = new byte[bufl];
+                for (int i = 0; i < bufl; i++) {
+                    block[i] = buf[i];
+                }
+            }
+ 
+            writer.write(cipher.doFinal(block));
+        }
+ 
+        return new String(writer.toByteArray(), input_charset);
+    }
+ 
+     
+    /**
+    * 得到私钥
+    * @param key 密钥字符串（经过base64编码）
+    * @throws Exception
+    */
+    public static PrivateKey getPrivateKey(String key) throws Exception {
+ 
+        byte[] keyBytes;
+         
+        keyBytes = Base64.decode(key);
+         
+        PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(keyBytes);
+         
+        KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+         
+        PrivateKey privateKey = keyFactory.generatePrivate(keySpec);
+         
+        return privateKey;
+    }
+}
+二、python 实现 SHA1withRSA 签名
+复制from Crypto.PublicKey import RSA
+from Crypto.Signature import PKCS1_v1_5
+from Crypto.Hash import MD5, SHA1, SHA256
+import base64
+from flask import current_app
+import warnings
+warnings.filterwarnings("ignore")
+
+
+
+def RSA_sign(data):
+    privateKey = '''MIICdwIBADANBgkqhkiG9w0BAQEFAASCAmEwggJdAgEAAoGBAIooE+9hmb6GvAUQ3j9FDRgrhWMmVWKepKNmQerrvovmySUSPzFHainDMl6HuQAWHCMI9O8S9kzqG3o9pnetpG7JShB6Oc9eX0kA6n0vLR2rYXNo5uVC29/Koqp250T7lzQ9bv6P0rkjIrqjTNIPVQXToyAwQcZQ5rVhUbtnP7YlAgMBAAECgYBpSzpGS0B9sPpDciOwXNQqA6FZe7G/w+D+l8TNYnaK8Y2Dr3ByAlerFJWi7hXVNwSivwTN4MnOvO3MMIha1gBnQCFStI4PjRv2qz6vsGfzZKFadUw3ngzGhT5UtIVAd+IFbbr4J+cGjGMmF5lIEaKrRCS5u4p11uf6LmhvbBTm0QJBAMQA7RYimdU9UStIm/RSkLQg6K89Om3S2AFXwqymiqhM4m6n7lRTE1xNX4pGm1BV8C/qL0d7AHbrJBFi+hN5onMCQQC0cjAXmKdnfhTo0IvYtzpXr77odBz4zt2Ake65ssBJEWFzle69MbWgkbrTKLLjGxBwM+C7fPDGNckqhlpjMGcHAkB+vcKRT6p9svqrrHX8FO+xKp6LwmHn5jD7HU6q6b47egvpVfnM2TNpujaPaXzBA/EeaqZL6IOyYfaer4vZ0At1AkEAqezuRQpIezlMT4I0b7z8gB7MVPMjZVrJVI4YlV8znJt1ffevfxMUy0Tw/nDRJPUTodX4yBZ8VuvHqPgknkuyeQJBALYpXGOH/GjlSVtnhq7eZxvoEqiBLawW5k7Rl1IyNdGR2qxY/nnoCyP2mMCs1Ba05sCcX08zzOzMPvttbSyjqPI='''
+
+    private_keyBytes = base64.b64decode(privateKey)
+    priKey = RSA.importKey(private_keyBytes)
+    # priKey = RSA.importKey(privateKey)
+    signer = PKCS1_v1_5.new(priKey,)
+    # SIGNATURE_ALGORITHM = "MD5withRSA"
+    # hash_obj = MD5.new(data.encode('utf-8'))
+    # SIGNATURE_ALGORITHM = "SHA1withRSA"
+    hash_obj = SHA1.new(data.encode('utf-8'))
+    # SIGNATURE_ALGORITHM = "SHA256withRSA"
+    # hash_obj = SHA256.new(data.encode('utf-8'))
+
+    signature = base64.b64encode(signer.sign(hash_obj))
+    return signature
+
+if __name__ == '__main__':
+    data = "phone=15811352072×tamp=1612496512540&device=Android"
+    res_sign1 = RSA_sign(data)
+    signature = res_sign1.decode('utf8')
+    print(signature)
+最后, 我们来看下 Java 中的 SHA256withRSA 签名
+
+复制package com.bkwallet.utils;
+
+import java.nio.charset.StandardCharsets;
+import java.security.KeyFactory;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.Signature;
+import java.security.interfaces.RSAPublicKey;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
+import java.util.Base64;
+import java.util.HashMap;
+import java.util.Map;
+
+public class SignatureUtil {
+    public static final String KEY_ALGORITHM = "RSA";
+    public static final String SIGNATURE_ALGORITHM = "SHA256withRSA";
+    private static final String UTF8 = "UTF-8";
+    public static String gongyao = "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCKKBPvYZm+hrwFEN4/RQ0YK4VjJlVinqSjZkHq676L5sklEj+8xR2opwzJeh7kAFhwjCPTvEvZM6ht6PaZ3raRuyUoQejnPXl9JAOp9Ly0dq2FzaOblQtvfyqKqdudE+5c0PW7+j9K5IyK6o0zSD1UF06MgMEHGUOa1YVG7Zz+2JQIDAQAB";
+    public static String miyao = "MIICdwIBADANBgkqhkiG9w0BAQEFAASCAmEwggJdAgEAAoGBAIooE+9hmb6GvAUQ3j9FDRgrhWMmVWKepKNmQerrvovmySUSPzFHainDMl6HuQAWHCMI9O8S9kzqG3o9pnetpG7JShB6Oc9eX0kA6n0vLR2rYXNo5uVC29/Koqp250T7lzQ9bv6P0rkjIrqjTNIPVQXToyAwQcZQ5rVhUbtnP7YlAgMBAAECgYBpSzpGS0B9sPpDciOwXNQqA6FZe7G/w+D+l8TNYnaK8Y2Dr3ByAlerFJWi7hXVNwSivwTN4MnOvO3MMIha1gBnQCFStI4PjRv2qz6vsGfzZKFadUw3ngzGhT5UtIVAd+IFbbr4J+cGjGMmF5lIEaKrRCS5u4p11uf6LmhvbBTm0QJBAMQA7RYimdU9UStIm/RSkLQg6K89Om3S2AFXwqymiqhM4m6n7lRTE1xNX4pGm1BV8C/qL0d7AHbrJBFi+hN5onMCQQC0cjAXmKdnfhTo0IvYtzpXr77odBz4zt2Ake65ssBJEWFzle69MbWgkbrTKLLjGxBwM+C7fPDGNckqhlpjMGcHAkB+vcKRT6p9svqrrHX8FO+xKp6LwmHn5jD7HU6q6b47egvpVfnM2TNpujaPaXzBA/EeaqZL6IOyYfaer4vZ0At1AkEAqezuRQpIezlMT4I0b7z8gB7MVPMjZVrJVI4YlV8znJt1ffevfxMUy0Tw/nDRJPUTodX4yBZ8VuvHqPgknkuyeQJBALYpXGOH/GjlSVtnhq7eZxvoEqiBLawW5k7Rl1IyNdGR2qxY/nnoCyP2mMCs1Ba05sCcX08zzOzMPvttbSyjqPI=";
+
+    public static Map<String, String> genPair() throws Exception {
+        HashMap hashMap = new HashMap(4);
+        KeyPairGenerator instance = KeyPairGenerator.getInstance("RSA");
+        instance.initialize(1024);
+        KeyPair generateKeyPair = instance.generateKeyPair();
+        PrivateKey privateKey = generateKeyPair.getPrivate();
+        PublicKey publicKey = generateKeyPair.getPublic();
+        String str = new String(Base64.getEncoder().encode(privateKey.getEncoded()));
+        String str2 = new String(Base64.getEncoder().encode(publicKey.getEncoded()));
+        hashMap.put("sk", str);
+        hashMap.put("pk", str2);
+        return hashMap;
+    }
+
+    public static String sign(byte[] bArr, String str) throws Exception {
+        PrivateKey generatePrivate = KeyFactory.getInstance("RSA").generatePrivate(new PKCS8EncodedKeySpec(Base64Utils.Base64ToChar(str)));
+        Signature instance = Signature.getInstance(SIGNATURE_ALGORITHM);
+        instance.initSign(generatePrivate);
+        instance.update(bArr);
+        return Base64Utils.byteArrayToBase64(instance.sign());
+    }
+
+    public static boolean verify(String str, String str2, String str3) throws Exception {
+        Signature instance = Signature.getInstance(SIGNATURE_ALGORITHM);
+        instance.initVerify((RSAPublicKey) KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(Base64.getDecoder().decode(str2))));
+        instance.update(str.getBytes(StandardCharsets.UTF_8));
+        return instance.verify(Base64.getDecoder().decode(str3));
+    }
+
+    public static void main(String[] strArr) throws Exception {
+        Map<String, String> genPair = genPair();
+        String str = genPair.get("sk");
+        System.out.println(str);
+        System.out.println(genPair.get("pk"));
+        System.out.println("----------------");
+        System.out.println(sign("{\"phone\":\"13629794569\",\"timestamp\":1630000000000,\"device\":\"Android\"}".getBytes("UTF-8"), str));
+    }
+}
+三、python 实现 SHA256withRSA 签名
+复制from Crypto.PublicKey import RSA
+from Crypto.Signature import PKCS1_v1_5
+from Crypto.Hash import MD5, SHA1, SHA256
+import base64
+from flask import current_app
+import warnings
+warnings.filterwarnings("ignore")
+
+
+
+def RSA_sign(data):
+    privateKey = '''MIICdwIBADANBgkqhkiG9w0BAQEFAASCAmEwggJdAgEAAoGBAIooE+9hmb6GvAUQ3j9FDRgrhWMmVWKepKNmQerrvovmySUSPzFHainDMl6HuQAWHCMI9O8S9kzqG3o9pnetpG7JShB6Oc9eX0kA6n0vLR2rYXNo5uVC29/Koqp250T7lzQ9bv6P0rkjIrqjTNIPVQXToyAwQcZQ5rVhUbtnP7YlAgMBAAECgYBpSzpGS0B9sPpDciOwXNQqA6FZe7G/w+D+l8TNYnaK8Y2Dr3ByAlerFJWi7hXVNwSivwTN4MnOvO3MMIha1gBnQCFStI4PjRv2qz6vsGfzZKFadUw3ngzGhT5UtIVAd+IFbbr4J+cGjGMmF5lIEaKrRCS5u4p11uf6LmhvbBTm0QJBAMQA7RYimdU9UStIm/RSkLQg6K89Om3S2AFXwqymiqhM4m6n7lRTE1xNX4pGm1BV8C/qL0d7AHbrJBFi+hN5onMCQQC0cjAXmKdnfhTo0IvYtzpXr77odBz4zt2Ake65ssBJEWFzle69MbWgkbrTKLLjGxBwM+C7fPDGNckqhlpjMGcHAkB+vcKRT6p9svqrrHX8FO+xKp6LwmHn5jD7HU6q6b47egvpVfnM2TNpujaPaXzBA/EeaqZL6IOyYfaer4vZ0At1AkEAqezuRQpIezlMT4I0b7z8gB7MVPMjZVrJVI4YlV8znJt1ffevfxMUy0Tw/nDRJPUTodX4yBZ8VuvHqPgknkuyeQJBALYpXGOH/GjlSVtnhq7eZxvoEqiBLawW5k7Rl1IyNdGR2qxY/nnoCyP2mMCs1Ba05sCcX08zzOzMPvttbSyjqPI='''
+
+    private_keyBytes = base64.b64decode(privateKey)
+    priKey = RSA.importKey(private_keyBytes)
+    # priKey = RSA.importKey(privateKey)
+    signer = PKCS1_v1_5.new(priKey,)
+    # SIGNATURE_ALGORITHM = "MD5withRSA"
+    # hash_obj = MD5.new(data.encode('utf-8'))
+    # SIGNATURE_ALGORITHM = "SHA1withRSA"
+    # hash_obj = SHA1.new(data.encode('utf-8'))
+    # SIGNATURE_ALGORITHM = "SHA256withRSA"
+    hash_obj = SHA256.new(data.encode('utf-8'))
+
+    signature = base64.b64encode(signer.sign(hash_obj))
+    return signature
+
+if __name__ == '__main__':
+    data = "phone=15811352072×tamp=1612496512540&device=Android"
+    res_sign1 = RSA_sign(data)
+    signature = res_sign1.decode('utf8')
+    print(signature)
