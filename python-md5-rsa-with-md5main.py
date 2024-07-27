@@ -14,7 +14,7 @@ class Client:
         self.reqSecretKey = None
         self.reqIv = None
         self.outId = None
-        # None和java null不一样如果java json结果中有null python要赋值字符串null来兼容
+        # python中得None被序列化之后是null，但是如果是用了'&'.join(self.__dict__)拼接会被拼接成key=None
         self.sign = 'null'
         self.bizContent = None
 
