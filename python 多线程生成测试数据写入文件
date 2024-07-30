@@ -1,0 +1,129 @@
+# 文件1
+main.py
+import hashlib
+import json
+import time
+import uuid
+from faker import Faker
+from File_write import *
+from IDCardProvice import *
+
+def dataclass
+  pass
+
+def generate_test_data_numbers():
+    fake = Faker('zh_CN')  # 使用中文地区设置
+    fake.add_provider(IDCardProvider)
+    id_no = fake.id_card_number("河南省")
+    phone_numbers = fake.phone_number()
+    return phone_numbers, id_no
+# 生成随机数据
+def generate_data(num_rows):
+    data = []
+    for _ in range(num_rows):
+        row = JkYunDataClass()
+        data.append(row)
+    return data
+def main():
+    start_task(thread_write_csv)
+
+# 线程函数
+def thread_write_csv(index):
+    data = generate_data(200)
+    file_name = f'thread_{index}.csv'
+    write_to_csv(file_name, data)
+    print(f"Thread {index} finished writing to {file_name}")
+# 文件2
+import random
+from faker.providers import BaseProvider
+class IDCardProvider(BaseProvider):
+    def __init__(self, generator):
+        super().__init__(generator)
+        # 省份地址码
+        self.province_codes = {
+            "河南省": "410000",
+            "湖北省": "420000",
+            "广东省": "440000",
+            "广西壮族自治区": "450000",
+            "海南省": "460000"
+        }
+
+    def id_card_number(self, province_name):
+        if province_name not in self.province_codes:
+            raise ValueError(f"Invalid province name: {province_name}")
+
+        # 获取省份的地址码
+        address_code = self.province_codes[province_name]
+
+        # 随机生成城市和区县代码
+        city_code = str(random.randint(0, 99)).zfill(2)
+        county_code = str(random.randint(0, 99)).zfill(2)
+
+        # 随机生成出生日期
+        birth_year = str(random.randint(1950, 2002))
+        birth_month = str(random.randint(1, 12)).zfill(2)
+        birth_day = str(random.randint(1, 28)).zfill(2)
+
+        # 随机生成序列号
+        sequence = str(random.randint(0, 9999)).zfill(4)
+
+        # 计算校验码
+        id_number = f"{address_code}{city_code}{county_code}{birth_year}{birth_month}{birth_day}{sequence}"
+        check_digit = self.calculate_check_digit(id_number)
+
+        return f"{id_number}{check_digit}"
+
+    def calculate_check_digit(self, id_number):
+        # 身份证号码的前17位乘数因子
+        factors = [7, 9, 10, 5, 8, 4, 2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2]
+        # 对应的校验码字符
+        check_digits = "10X98765432"
+
+        sum_product = sum(int(digit) * factor for digit, factor in zip(id_number, factors))
+        remainder = sum_product % 11
+        return check_digits[remainder]
+
+# 文件3
+File_write.py
+import csv
+import threading
+import pandas as pd
+# 写入CSV文件
+def write_to_csv(file_name, data):
+    with open(file_name, mode='w', newline='') as file:
+        fieldnames = ['csv表头']
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
+        writer.writeheader()
+        for row in data:
+            writer.writerow(row)
+
+
+def start_task(thread_write_csv):
+    # 创建线程
+    threads = []
+    # 启动线程
+    for i in range(5):
+        thread = threading.Thread(target=thread_write_csv, args=(i,))
+        threads.append(thread)
+        thread.start()
+
+    # 等待所有线程完成
+    for thread in threads:
+        thread.join()
+
+    # 合并CSV文件
+    def merge_csv_files(output_file, input_files):
+        all_data = []
+        for file in input_files:
+            df = pd.read_csv(file)
+            all_data.append(df)
+
+        combined_df = pd.concat(all_data, ignore_index=True)
+        combined_df.to_csv(output_file, index=False)
+        print(f"All files merged into {output_file}")
+
+    # CSV文件列表
+    input_files = [f'thread_{i}.csv' for i in range(5)]
+    # 合并文件
+    merge_csv_files('testdata.csv', input_files)
+
